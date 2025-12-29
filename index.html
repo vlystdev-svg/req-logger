@@ -68,6 +68,14 @@
             font-weight: bold;
         }
 
+        .warning {
+            color: #ff6600;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ff6600;
+            background: rgba(255, 102, 0, 0.1);
+        }
+
         /* Custom scrollbar */
         #console::-webkit-scrollbar {
             width: 10px;
@@ -90,8 +98,12 @@
 <body>
     <div id="console">
         <div class="header">
-            === REQUEST LOGGER v1.0 ===<br>
-            Monitoring all incoming requests...
+            === REQUEST LOGGER v1.0 (Vercel Edition) ===<br>
+            Monitoring page requests...
+        </div>
+        <div class="warning">
+            ⚠️  NOTE: Vercel uses serverless functions, so real-time WebSocket broadcasting isn't supported.<br>
+            This version logs page views only. For full request logging with WebSockets, deploy to a Node.js server.
         </div>
     </div>
 
@@ -125,7 +137,6 @@
                     };
                 });
                 
-                // Keep only the last MAX_LOGS entries
                 const logsToSave = entries.slice(-MAX_LOGS);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(logsToSave));
             } catch (e) {
@@ -145,7 +156,6 @@
             `;
             consoleDiv.appendChild(entry);
             
-            // Auto scroll to bottom
             consoleDiv.scrollTop = consoleDiv.scrollHeight;
             
             if (shouldSave) {
@@ -159,68 +169,43 @@
             return now.toISOString().replace('T', ' ').substring(0, 19);
         }
 
-        // WebSocket connection
-        let ws;
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-            
-            ws = new WebSocket(wsUrl);
-            
-            ws.onopen = () => {
-                displayLog({
-                    timestamp: getTimestamp(),
-                    ip: 'SYSTEM',
-                    method: 'INFO',
-                    path: 'WebSocket connected'
-                });
-            };
-            
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    displayLog({
-                        timestamp: data.timestamp || getTimestamp(),
-                        ip: data.ip || 'unknown',
-                        method: data.method || 'GET',
-                        path: data.path || '/'
-                    });
-                } catch (e) {
-                    console.error('Error parsing WebSocket message:', e);
-                }
-            };
-            
-            ws.onerror = (error) => {
-                displayLog({
-                    timestamp: getTimestamp(),
-                    ip: 'SYSTEM',
-                    method: 'ERROR',
-                    path: 'WebSocket error occurred'
-                });
-            };
-            
-            ws.onclose = () => {
-                displayLog({
-                    timestamp: getTimestamp(),
-                    ip: 'SYSTEM',
-                    method: 'INFO',
-                    path: 'WebSocket disconnected, reconnecting in 3s...'
-                });
-                setTimeout(connectWebSocket, 3000);
-            };
+        // Get client IP (will show as LOCAL on Vercel)
+        async function getClientInfo() {
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                return data.ip;
+            } catch (e) {
+                return 'LOCAL';
+            }
         }
 
         // Initialize
-        loadLogs();
-        connectWebSocket();
+        async function init() {
+            loadLogs();
+            
+            const ip = await getClientInfo();
+            
+            // Log this page view
+            displayLog({
+                timestamp: getTimestamp(),
+                ip: ip,
+                method: 'GET',
+                path: window.location.pathname + window.location.search
+            });
 
-        // Log this page request too
-        displayLog({
-            timestamp: getTimestamp(),
-            ip: 'SELF',
-            method: 'GET',
-            path: window.location.pathname
-        });
+            // Log navigation events
+            window.addEventListener('popstate', () => {
+                displayLog({
+                    timestamp: getTimestamp(),
+                    ip: ip,
+                    method: 'NAVIGATE',
+                    path: window.location.pathname + window.location.search
+                });
+            });
+        }
+
+        init();
     </script>
 </body>
 </html>
