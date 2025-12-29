@@ -1,0 +1,15 @@
+{
+  "name": "request-logger",
+  "version": "1.0.0",
+  "description": "Live request logger with WebSocket support",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["logger", "websocket", "requests"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2"
+  }
+}
